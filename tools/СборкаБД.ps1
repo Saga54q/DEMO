@@ -35,11 +35,15 @@ $dbe = New-Object -ComObject DAO.DBEngine.120
 $db = $dbe.CreateDatabase($dbPath, ';LANGID=0x0409;CP=1252;COUNTRY=0', 128)
 
 Write-Host '== 2. Выполнение sql/МагазинОбуви.sql (структура + данные) =='
+Write-Host '   (операторы ALTER TABLE ADD CONSTRAINT пропускаются: DAO Execute их'
+Write-Host '    не принимает - ошибка 3289; связи создаются на шаге 3 через DAO)'
 $sqlText = Get-Content -Raw -Encoding UTF8 $sqlPath
 $lines = $sqlText -split "`r?`n" | Where-Object { $_ -notmatch '^\s*--' }
 $clean = ($lines -join "`n")
 $stmts = $clean -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
-foreach ($s in $stmts) {
+$ddl = @($stmts | Where-Object { $_ -notmatch '^(ALTER|INSERT)' })
+$ins = @($stmts | Where-Object { $_ -match '^INSERT' })
+foreach ($s in $ddl) {
     try {
         $script:lastStmt = ($s -replace '\s+', ' ')
         $db.Execute($s) | Out-Null
@@ -49,7 +53,40 @@ foreach ($s in $stmts) {
         throw
     }
 }
-Write-Host ("Выполнено операторов: {0}" -f $stmts.Count)
+Write-Host ("Создано объектов структуры: {0}" -f $ddl.Count)
+
+Write-Host '== 3. Связи со ссылочной целостностью (DAO CreateRelation) =='
+# RelationAttributeEnum: dbRelationUpdateCascade = 256, dbRelationDeleteCascade = 4096
+function Add-Rel($name, $parent, $parentField, $child, $childField, $attrs) {
+    $rel = $db.CreateRelation($name, $parent, $child, $attrs)
+    $f = $rel.CreateField($childField)
+    $f.ForeignName = $parentField
+    $rel.Fields.Append($f)
+    $db.Relations.Append($rel)
+    $kind = if ($attrs -band 4096) { 'ON UPDATE CASCADE + ON DELETE CASCADE' } else { 'ON UPDATE CASCADE' }
+    Write-Host ("  {0}.{1} -> {2}.{3}: {4}" -f $parent, $parentField, $child, $childField, $kind)
+}
+$UPD = 256
+$DEL = 4096
+Add-Rel 'R_Клиенты_Заказы'        'Клиенты'         'ID_Клиента'      'Заказы'         'ID_Клиента'   $UPD
+Add-Rel 'R_Заказы_СоставЗаказа'   'Заказы'          'ID_Заказа'       'СоставЗаказа'   'ID_Заказа'    ($UPD + $DEL)
+Add-Rel 'R_Позиции_СоставЗаказа'  'ТоварныеПозиции' 'ID_Позиции'      'СоставЗаказа'   'ID_Позиции'   $UPD
+Add-Rel 'R_Модели_Позиции'        'Модели'          'ID_Модели'       'ТоварныеПозиции' 'ID_Модели'  $UPD
+Add-Rel 'R_Категории_Модели'      'Категории'       'ID_Категории'    'Модели'         'ID_Категории' $UPD
+Add-Rel 'R_Производители_Модели'  'Производители'   'ID_Производителя' 'Модели'        'ID_Производителя' $UPD
+
+Write-Host '== 4. Загрузка данных (INSERT) =='
+foreach ($s in $ins) {
+    try {
+        $script:lastStmt = ($s -replace '\s+', ' ')
+        $db.Execute($s) | Out-Null
+    } catch {
+        Write-Host "ОШИБКА в операторе:" -ForegroundColor Red
+        Write-Host $s
+        throw
+    }
+}
+Write-Host ("Выполнено INSERT: {0}" -f $ins.Count)
 
 Write-Host '== 3. Поле «Изображение» -> тип «Вложение» (ATTACHMENT) =='
 $db.TableDefs.Refresh()
