@@ -35,8 +35,11 @@ jobs:
         run: .\tools\СборкаБД.ps1
 
       - name: Выгрузить базу как артефакт
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: МагазинОбуви
-          path: build/МагазинОбуви.accdb
-          if-no-files-found: error
+          path: |
+            build/МагазинОбуви.accdb
+            build/журнал.txt
+          if-no-files-found: warn

@@ -23,6 +23,11 @@ $outDir  = Join-Path $repoRoot 'build'
 $dbPath  = Join-Path $outDir 'МагазинОбуви.accdb'
 
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+Start-Transcript -Path (Join-Path $outDir 'журнал.txt') | Out-Null
+
+$script:lastStmt = ''
+try {
+
 if (Test-Path $dbPath) { Remove-Item $dbPath -Force }
 
 Write-Host '== 1. Создание пустой базы .accdb (DAO, dbVersion120 = 128) =='
@@ -36,6 +41,7 @@ $clean = ($lines -join "`n")
 $stmts = $clean -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
 foreach ($s in $stmts) {
     try {
+        $script:lastStmt = ($s -replace '\s+', ' ')
         $db.Execute($s) | Out-Null
     } catch {
         Write-Host "ОШИБКА в операторе:" -ForegroundColor Red
@@ -128,3 +134,16 @@ Write-Host '  Тест каскадного удаления: строки за�
 
 $db.Close()
 Write-Host "== ГОТОВО: $dbPath =="
+Stop-Transcript | Out-Null
+
+} catch {
+    try { Stop-Transcript | Out-Null } catch {}
+    $msg = [string]$_.Exception.Message
+    Write-Host "::error::СБОРКА ПРОВАЛЕНА: $msg"
+    if ($script:lastStmt) {
+        $stmt = $script:lastStmt
+        if ($stmt.Length -gt 500) { $stmt = $stmt.Substring(0, 500) }
+        Write-Host "::error::Последний SQL-оператор: $stmt"
+    }
+    exit 1
+}
