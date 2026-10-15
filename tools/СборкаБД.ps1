@@ -75,6 +75,11 @@ Add-Rel 'R_Модели_Позиции'        'Модели'          'ID_Мо�
 Add-Rel 'R_Категории_Модели'      'Категории'       'ID_Категории'    'Модели'         'ID_Категории' $UPD
 Add-Rel 'R_Производители_Модели'  'Производители'   'ID_Производителя' 'Модели'        'ID_Производителя' $UPD
 
+# Пересоздаём сессию: сбрасываем кеш схемы, чтобы ограничения
+# ссылочной целостности точно применялись к последующим операциям.
+$db.Close()
+$db = $dbe.OpenDatabase($dbPath)
+
 Write-Host '== 4. Загрузка данных (INSERT) =='
 foreach ($s in $ins) {
     try {
@@ -159,17 +164,56 @@ Write-Host "  Связей со ссылочной целостностью: $re
 if ($relCount -ne 6) { throw "Связей $relCount вместо 6" }
 
 # Тест 1. Ссылочная целостность: мусорная строка должна быть отвергнута.
-$riBlocked = $false
-try {
-    $db.Execute('INSERT INTO СоставЗаказа (ID_Заказа, ID_Позиции, Количество, ЦенаЗаЕдиницу) VALUES (99, 99, 1, 1)') | Out-Null
-} catch {
-    $riBlocked = $true
+# Проверяем двумя способами (SQL INSERT и Recordset) и честно фиксируем результат.
+function Test-RI($via, $action) {
+    try {
+        & $action | Out-Null
+        return 'ПРОШЛА'
+    } catch {
+        return ("ОТВЕРГНУТА ({0})" -f ($_.Exception.Message -replace '\s+', ' '))
+    }
 }
-if (-not $riBlocked) {
-    $db.Execute('DELETE FROM СоставЗаказа WHERE ID_Заказа = 99') | Out-Null
-    throw 'RI-ТЕСТ ПРОВАЛЕН: запись с несуществующими ключами прошла'
+
+$sqlAction = {
+    $db.Execute('INSERT INTO СоставЗаказа (ID_Заказа, ID_Позиции, Количество, ЦенаЗаЕдиницу) VALUES (777, 777, 1, 1)') | Out-Null
 }
-Write-Host '  Тест RI: мусорная запись отвергнута - OK'
+$rsAction = {
+    $rs = $db.OpenRecordset('СоставЗаказа', 1)
+    try {
+        $rs.AddNew()
+        $rs.Fields.Item('ID_Заказа').Value = 777
+        $rs.Fields.Item('ID_Позиции').Value = 777
+        $rs.Fields.Item('Количество').Value = 1
+        $rs.Fields.Item('ЦенаЗаЕдиницу').Value = 1
+        $rs.Update()
+    } finally {
+        $rs.Close()
+    }
+}
+$riSql = Test-RI 'SQL' $sqlAction
+$rs = $db.OpenRecordset('SELECT COUNT(*) AS CNT FROM СоставЗаказа WHERE ID_Заказа = 777', 2)
+$stray = [int]$rs.Fields.Item('CNT').Value
+$rs.Close()
+if ($stray -gt 0) { $db.Execute('DELETE FROM СоставЗаказа WHERE ID_Заказа = 777') | Out-Null }
+$riRs = Test-RI 'Recordset' $rsAction
+$rs = $db.OpenRecordset('SELECT COUNT(*) AS CNT FROM СоставЗаказа WHERE ID_Заказа = 777', 2)
+$stray2 = [int]$rs.Fields.Item('CNT').Value
+$rs.Close()
+if ($stray2 -gt 0) { $db.Execute('DELETE FROM СоставЗаказа WHERE ID_Заказа = 777') | Out-Null }
+Write-Host "  RI через SQL INSERT : $riSql (мусорных строк: $stray)"
+Write-Host "  RI через Recordset  : $riRs (мусорных строк: $stray2)"
+
+if (($riSql -like 'ПРОШЛА*') -or ($riRs -like 'ПРОШЛА*')) {
+    Write-Host "::error::RI-ТЕСТ ПРОВАЛЕН. SQL: $riSql ; Recordset: $riRs"
+    foreach ($r in $db.Relations) {
+        $map = @()
+        foreach ($rf in $r.Fields) { $map += ("{0}->{1}" -f $rf.Name, $rf.ForeignName) }
+        Write-Host ("::error::REL {0}: {1} -> {2} attrs={3} fields=[{4}]" -f `
+            $r.Name, $r.Table, $r.ForeignTable, $r.Attributes, ($map -join '; '))
+    }
+    throw "RI-ТЕСТ ПРОВАЛЕН: SQL=$riSql ; RS=$riRs"
+}
+Write-Host '  Тест RI: мусорная запись отвергнута обоими способами - OK'
 
 # Тест 2. Каскадное удаление Заказы -> СоставЗаказа на временной записи.
 $db.Execute('INSERT INTO Заказы (ID_Заказа, ID_Клиента, ДатаЗаказа) VALUES (99, 1, #2026-10-15#)') | Out-Null
