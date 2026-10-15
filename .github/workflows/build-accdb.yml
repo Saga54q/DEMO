@@ -9,6 +9,9 @@ on:
       - 'Практика1_МагазинОбуви/images/**'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -33,6 +36,17 @@ jobs:
       - name: Собрать МагазинОбуви.accdb (DAO + sql-скрипт)
         shell: pwsh
         run: .\tools\СборкаБД.ps1
+
+      - name: Закрепить готовую базу в репозитории
+        shell: pwsh
+        run: |
+          Copy-Item 'build/МагазинОбуви.accdb' 'Практика1_МагазинОбуви/МагазинОбуви.accdb' -Force
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add 'Практика1_МагазинОбуви/МагазинОбуви.accdb'
+          git commit -m 'Сборка: МагазинОбуви.accdb — готовая база (таблицы, данные, связи RI, вложения)'
+          git pull --rebase origin $env:GITHUB_REF_NAME
+          git push origin $env:GITHUB_REF_NAME
 
       - name: Выгрузить базу как артефакт
         if: always()
