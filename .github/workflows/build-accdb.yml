@@ -1,0 +1,42 @@
+name: Сборка МагазинОбуви.accdb
+
+on:
+  push:
+    paths:
+      - 'sql/**'
+      - 'tools/**'
+      - '.github/workflows/build-accdb.yml'
+      - 'Практика1_МагазинОбуви/images/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Клонировать репозиторий
+        uses: actions/checkout@v4
+
+      - name: Установить Access Database Engine (ACE), если его нет
+        shell: pwsh
+        run: |
+          $registered = (Test-Path 'HKLM:\SOFTWARE\Classes\Microsoft.ACE.OLEDB.16.0') -or (Test-Path 'HKLM:\SOFTWARE\Classes\Microsoft.ACE.OLEDB.12.0')
+          Write-Host "ACE зарегистрирован в системе: $registered"
+          if (-not $registered) {
+            $url = 'https://download.microsoft.com/download/3/5/C/35C84C36-661A-44E6-9324-8786B8DBE231/accessdatabaseengine_X64.exe'
+            $installer = Join-Path $env:TEMP 'ace_x64.exe'
+            Write-Host "Скачиваю $url"
+            Invoke-WebRequest -Uri $url -OutFile $installer
+            Start-Process -FilePath $installer -ArgumentList '/quiet', '/norestart' -Wait
+            Write-Host 'ACE установлен'
+          }
+
+      - name: Собрать МагазинОбуви.accdb (DAO + sql-скрипт)
+        shell: pwsh
+        run: .\tools\СборкаБД.ps1
+
+      - name: Выгрузить базу как артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: МагазинОбуви
+          path: build/МагазинОбуви.accdb
+          if-no-files-found: error
