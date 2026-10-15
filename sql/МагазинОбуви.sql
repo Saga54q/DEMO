@@ -40,16 +40,16 @@ CREATE TABLE Модели (
   Состав TEXT(100),
   Описание MEMO,
   Цена CURRENCY,
-  Изображение LONGBINARY,
-  CONSTRAINT CK_Модели_Цена CHECK (Цена >= 0)
+  Изображение LONGBINARY
+  -- Правила проверки (Цена >= 0 и др.) задаются свойством ValidationRule
+  -- полей — см. tools/СборкаБД.ps1 и режим конструктора Access.
 );
 
 CREATE TABLE ТоварныеПозиции (
   ID_Позиции COUNTER CONSTRAINT PK_ТоварныеПозиции PRIMARY KEY,
   ID_Модели LONG NOT NULL,
   Размер BYTE,
-  Количество LONG,
-  CONSTRAINT CK_ТоварныеПозиции_Кол CHECK (Количество >= 0)
+  Количество LONG
 );
 
 CREATE TABLE Заказы (
@@ -63,9 +63,7 @@ CREATE TABLE СоставЗаказа (
   ID_Заказа LONG NOT NULL,
   ID_Позиции LONG NOT NULL,
   Количество LONG,
-  ЦенаЗаЕдиницу CURRENCY,
-  CONSTRAINT CK_СоставЗаказа_Кол CHECK (Количество > 0),
-  CONSTRAINT CK_СоставЗаказа_Цена CHECK (ЦенаЗаЕдиницу >= 0)
+  ЦенаЗаЕдиницу CURRENCY
 );
 
 -- Ограничение предметной области: одна модель в одном размере —

@@ -58,7 +58,19 @@ $td.Fields.Delete('Изображение')
 $f = $td.CreateField('Изображение', 101)   # 101 = dbAttachment
 $td.Fields.Append($f)
 
-Write-Host '== 4. Загрузка изображений моделей во вложения =='
+Write-Host '== 4. Правила проверки полей (ValidationRule) =='
+function Set-Rule($table, $field, $rule, $text) {
+    $f = $db.TableDefs.Item($table).Fields.Item($field)
+    $f.ValidationRule = $rule
+    $f.ValidationText = $text
+    Write-Host ("  {0}.{1}: правило '{2}'" -f $table, $field, $rule)
+}
+Set-Rule 'Модели' 'Цена' '>=0' 'Цена не может быть отрицательной'
+Set-Rule 'ТоварныеПозиции' 'Количество' '>=0' 'Остаток не может быть отрицательным'
+Set-Rule 'СоставЗаказа' 'Количество' '>0' 'Количество пар должно быть больше нуля'
+Set-Rule 'СоставЗаказа' 'ЦенаЗаЕдиницу' '>=0' 'Цена не может быть отрицательной'
+
+Write-Host '== 5. Загрузка изображений моделей во вложения =='
 $imgMap = @{
     1 = '01_ultraboost.jpg'
     2 = '02_airzoom.jpg'
