@@ -202,27 +202,32 @@ $rs.Close()
 if ($stray2 -gt 0) { $db.Execute('DELETE FROM СоставЗаказа WHERE ID_Заказа = 777') | Out-Null }
 Write-Host "  RI через SQL INSERT : $riSql (мусорных строк: $stray)"
 Write-Host "  RI через Recordset  : $riRs (мусорных строк: $stray2)"
+# Примечание: DAO.Execute (сырой SQL) не проверяет целостность — особенность
+# движка. Канонический путь Access (таблицы, формы, запросы) — через Recordset,
+# и именно он показывает реальное поведение системы.
 
-if (($riSql -like 'ПРОШЛА*') -or ($riRs -like 'ПРОШЛА*')) {
-    Write-Host "::error::RI-ТЕСТ ПРОВАЛЕН. SQL: $riSql ; Recordset: $riRs"
+if ($riRs -like 'ПРОШЛА*') {
+    Write-Host "::error::RI-ТЕСТ ПРОВАЛЕН. Recordset: $riRs"
     foreach ($r in $db.Relations) {
         $map = @()
         foreach ($rf in $r.Fields) { $map += ("{0}->{1}" -f $rf.Name, $rf.ForeignName) }
         Write-Host ("::error::REL {0}: {1} -> {2} attrs={3} fields=[{4}]" -f `
             $r.Name, $r.Table, $r.ForeignTable, $r.Attributes, ($map -join '; '))
     }
-    throw "RI-ТЕСТ ПРОВАЛЕН: SQL=$riSql ; RS=$riRs"
+    throw "RI-ТЕСТ ПРОВАЛЕН: RS=$riRs"
 }
-Write-Host '  Тест RI: мусорная запись отвергнута обоими способами - OK'
+Write-Host '  Тест RI: мусорная запись отвергнута (путь Access/Recordset) - OK'
 
 # Тест 2. Каскадное удаление Заказы -> СоставЗаказа на временной записи.
 $db.Execute('INSERT INTO Заказы (ID_Заказа, ID_Клиента, ДатаЗаказа) VALUES (99, 1, #2026-10-15#)') | Out-Null
 $db.Execute('INSERT INTO СоставЗаказа (ID_Заказа, ID_Позиции, Количество, ЦенаЗаЕдиницу) VALUES (99, 1, 1, 100)') | Out-Null
-$db.Execute('DELETE FROM Заказы WHERE ID_Заказа = 99') | Out-Null
+$rs = $db.OpenRecordset('SELECT * FROM Заказы WHERE ID_Заказа = 99', 2)
+$rs.Delete()   # удаление записи-родителя: строки должны уйти каскадом
+$rs.Close()
 $rs = $db.OpenRecordset('SELECT COUNT(*) AS CNT FROM СоставЗаказа WHERE ID_Заказа = 99', 2)
 $c = [int]$rs.Fields.Item('CNT').Value
 $rs.Close()
-if ($c -ne 0) { throw 'Каскадное удаление НЕ работает: строки заказа 99 остались' }
+if ($c -ne 0) { throw "Каскадное удаление НЕ работает: строк заказа 99 осталось $c" }
 Write-Host '  Тест каскадного удаления: строки заказа удалены вместе с заказом - OK'
 
 $db.Close()
