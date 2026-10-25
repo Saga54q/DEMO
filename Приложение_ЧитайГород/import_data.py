@@ -11,8 +11,11 @@ IMAGES = ROOT / "images"
 
 def rows(book, sheet):
     """Читает строки листа, используя первую строку как имена столбцов."""
-    ws = load_workbook(SOURCE / book, data_only=True, read_only=True)[sheet]
-    values = list(ws.iter_rows(values_only=True))
+    workbook = load_workbook(SOURCE / book, data_only=True, read_only=True)
+    try:
+        values = list(workbook[sheet].iter_rows(values_only=True))
+    finally:
+        workbook.close()
     headers = values[0]
     return [dict(zip(headers, row)) for row in values[1:]
             if row and row[0] is not None]
