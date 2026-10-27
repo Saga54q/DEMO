@@ -1,4 +1,16 @@
+# Локальная Access-база и lock-файлы (создаётся на ПК пользователя)
+БД/*.accdb
+БД/*.laccdb
+БД/*.mdb
+
+# Python virtual environments / bytecode
+.venv/
+venv/
 __pycache__/
 *.py[cod]
-.venv/
-*.tmp
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
