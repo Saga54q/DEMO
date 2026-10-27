@@ -68,7 +68,8 @@
 - `tools/create_demo_workbook.py` — повторное создание демонстрационной книги;
 - `tools/create_assets.py` — логотип, иконка и заглушка изображения;
 - `tools/create_diagrams.py`, `tools/create_report_template.py` — пересоздание PDF/DOCX (пакеты для этого указаны в `requirements-docs.txt`);
-- `create_access_db.py`, `README_ACCESS.md` — Windows-скрипт автосоздания отдельной базы Access и инструкция по ODBC/COM;
+- `Модуль_создания_БД.bas` — модуль VBA для создания таблиц/связей прямо в открытой базе Access;
+- `create_access_db.py`, `README_ACCESS.md` — альтернативный Windows-генератор Access через COM/ODBC и инструкция;
 - `mebelmarket.db` — готовая учебная база с импортированными данными;
 - `ER_диаграмма.pdf`, `Блок-схема.pdf` — диаграмма сущностей и блок-схема приложения;
 - `Отчёт_скриншоты_ШАБЛОН.docx` — шаблон отчёта; поля снимков нужно заменить скриншотами реального запуска;
