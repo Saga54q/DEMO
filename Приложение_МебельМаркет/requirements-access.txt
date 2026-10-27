@@ -1,0 +1,3 @@
+# Требуется только для создания/подключения Microsoft Access из Python в Windows
+pyodbc>=5.1
+pywin32>=306; sys_platform == "win32"
